@@ -714,3 +714,6 @@ config ARMSSE
     select UNIMP
     select SSE_COUNTER
     select SSE_TIMER
+
+config MT6580
+    bool
