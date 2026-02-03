@@ -694,3 +694,10 @@ config ARMSSE
     select UNIMP
     select SSE_COUNTER
     select SSE_TIMER
+
+config MT6580
+    bool
+    default y
+    depends on TCG && ARM
+    select PTIMER
+    select OR_IRQ

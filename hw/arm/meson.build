@@ -104,6 +104,8 @@ arm_common_ss.add(when: 'CONFIG_SX1', if_true: files('omap_sx1.c'))
 arm_common_ss.add(when: 'CONFIG_VERSATILE', if_true: files('versatilepb.c'))
 arm_common_ss.add(when: 'CONFIG_VEXPRESS', if_true: files('vexpress.c'))
 
+arm_common_ss.add(when: 'CONFIG_MT6580', if_true: files('mt6580.c', 'mt6580_boards.c'))
+
 arm_common_ss.add(files('boot.c'))
 
 hw_arch += {'arm': arm_ss}
