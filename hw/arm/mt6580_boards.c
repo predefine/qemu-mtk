@@ -1,11 +1,16 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "hw/arm/machines-qom.h"
+#include "qemu/typedefs.h"
 #include "system/address-spaces.h"
 #include "cpu.h"
 #include "hw/arm/boot.h"
 #include "hw/arm/mt6580.h"
 #include "qemu/units.h"
+#include "qemu/error-report.h"
+#include "qemu/datadir.h"
+#include "hw/core/loader.h"
+#include "system/memory.h"
 
 typedef struct MT6580BoardState {
     MT6580State soc;
@@ -28,7 +33,39 @@ static void mt6580_test_init(MachineState *machine)
     mt6580_board_boot_info.ram_size = 1 * GiB;
 
     memory_region_add_subregion(get_system_memory(), 0x80000000, machine->ram);
-    arm_load_kernel(s->soc.cpu[0], machine, &mt6580_board_boot_info);
+
+    MemoryRegion* brom_region = g_new(MemoryRegion, 1);
+    memory_region_init_ram(brom_region, NULL, "brom", 128 * KiB, &error_fatal);
+    memory_region_add_subregion(get_system_memory(), 0, brom_region);
+
+    MemoryRegion* brom_sram_region = g_new(MemoryRegion, 1);
+    memory_region_init_ram(brom_sram_region, NULL, "brom.sram", 64 * KiB, &error_fatal);
+    memory_region_add_subregion(get_system_memory(), 0x00100000, brom_sram_region);
+
+
+    if (machine->firmware) {
+        char *fn;
+        int image_size;
+
+        if (drive_get(IF_PFLASH, 0, 0)) {
+            error_report("The contents of the first flash device may be "
+                         "specified with -bios or with -drive if=pflash... "
+                         "but you cannot use both options at once");
+            exit(1);
+        }
+        fn = qemu_find_file(QEMU_FILE_TYPE_BIOS, machine->firmware);
+        if (!fn) {
+            error_report("Could not find ROM image '%s'", machine->firmware);
+            exit(1);
+        }
+        image_size = load_image_targphys(fn, 0, 128 * KiB, &error_fatal);
+        g_free(fn);
+        if (image_size < 0) {
+            error_report("Could not load ROM image '%s'", machine->firmware);
+            exit(1);
+        }
+    }
+    // arm_load_kernel(s->soc.cpu[0], machine, &mt6580_board_boot_info);
 }
 
 static const char * const valid_cpu_types[] = {
