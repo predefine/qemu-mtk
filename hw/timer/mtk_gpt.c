@@ -3,7 +3,7 @@
 #include "hw/core/ptimer.h"
 #include "hw/timer/mtk_gpt.h"
 
-#define MTK_GPT_SYSTEM_CLOCK 26000000 /* 13 MHZ */
+#define MTK_GPT_SYSTEM_CLOCK 13000000 /* 13 MHZ */
 #define MTK_GPT_RTC_CLOCK 32768
 
 uint32_t mtk_gpt_divs[16] = {
