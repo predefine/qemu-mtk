@@ -102,11 +102,11 @@ static void mt6580_sej_write(void *o, hwaddr offset,
                 return;
             }
             if (value & 0x1) { // AES_START
-                // TODO: real aes decode
+                // TODO: real aes decode or encode
 
 
                 for (int i = 0; i < 4; i++)
-                    state->aes_out[i] = 0xdeadc0cc;
+                    state->aes_out[i] = state->aes_in[i];
 
                 state->aes_state |= 0x8000; // AES_READY
             }
