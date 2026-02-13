@@ -6,6 +6,9 @@
 #include "hw/timer/mtk_gpt.h"
 #include "hw/misc/mt6580_efusec.h"
 #include "hw/misc/mt6580_sej.h"
+#include "hw/sd/mtk-msdc.h"
+
+#define NUM_MSDCS 2
 
 struct MT6580State {
     SysBusDevice parent_obj;
@@ -15,6 +18,7 @@ struct MT6580State {
     MtkGptState gpt;
     Mt6580EfusecState efusec;
     Mt6580SejState sej;
+    MtkMsdcState msdc[NUM_MSDCS];
 };
 
 #define TYPE_MT6580_SOC "mt6580"

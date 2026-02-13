@@ -43,6 +43,10 @@ static void mt6580_test_init(MachineState *machine)
     memory_region_add_subregion(get_system_memory(), 0x00100000, brom_sram_region);
 
 
+    MemoryRegion* some_ram_ig = g_new(MemoryRegion, 1);
+    memory_region_init_ram(some_ram_ig, NULL, "brom.some_ram", 128 * KiB, &error_fatal);
+    memory_region_add_subregion(get_system_memory(), 0x00200000, some_ram_ig);
+
     if (machine->firmware) {
         char *fn;
         int image_size;
@@ -65,7 +69,7 @@ static void mt6580_test_init(MachineState *machine)
             exit(1);
         }
     }
-    // arm_load_kernel(s->soc.cpu[0], machine, &mt6580_board_boot_info);
+    arm_load_kernel(s->soc.cpu[0], machine, &mt6580_board_boot_info);
 }
 
 static const char * const valid_cpu_types[] = {
@@ -83,7 +87,7 @@ static void mt6580_test_class_init(ObjectClass *oc, const void *data)
     mc->max_cpus = 1;
     mc->min_cpus = 1;
     mc->default_cpus = 1;
-    mc->ignore_memory_transaction_failures = false;
+    mc->ignore_memory_transaction_failures = true;
     mc->default_ram_size = 1 * GiB;
     mc->default_ram_id = "ram";
 }

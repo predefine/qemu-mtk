@@ -8,11 +8,20 @@
 #include "system/system.h"
 #include "hw/char/serial-mtk.h"
 #include "hw/misc/unimp.h"
+#include "system/blockdev.h"
 
 #define MT6580_GPT_BASE    0x10008000
 #define MT6580_EFUSEC_BASE 0x10009000
 #define MT6580_SEJ_BASE    0x1000a000
 #define MT6580_UART0_BASE  0x11005000
+#define MT6580_MSDC0_BASE  0x11120000
+#define MT6580_MSDC1_BASE  0x11130000
+
+
+hwaddr msdc_addrs[] = {
+    MT6580_MSDC0_BASE,
+    MT6580_MSDC1_BASE,
+};
 
 static void mt6580_realize(DeviceState *socdev, Error **errp)
 {
@@ -42,6 +51,23 @@ static void mt6580_realize(DeviceState *socdev, Error **errp)
     sysbus_realize(SYS_BUS_DEVICE(&s->sej), &error_abort);
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->sej), 0, MT6580_SEJ_BASE);
 
+
+    // fuck the emmc for now, i don't know if qemu supports pre-idle emmc state
+    qdev_prop_set_bit(DEVICE(&s->msdc[0]), "fuck-the-mmc", true);
+    // qdev_prop_set_bit(DEVICE(&s->msdc[1]), "fuck-the-mmc", true);
+
+    for (int i = 0; i < NUM_MSDCS; i++) {
+        sysbus_realize(SYS_BUS_DEVICE(&s->msdc[i]), &error_abort);
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->msdc[i]), 0, msdc_addrs[i]);
+    }
+
+    DriveInfo* sdcard_di = drive_get(IF_SD, 0, 0);
+    assert(sdcard_di != NULL);
+    DeviceState* msdc_sdcard = qdev_new(TYPE_SD_CARD);
+    qdev_prop_set_drive(msdc_sdcard, "drive", blk_by_legacy_dinfo(sdcard_di));
+    qdev_realize_and_unref(msdc_sdcard, qdev_get_child_bus(DEVICE(&s->msdc[1]), "sd-bus"),
+                           &error_fatal);
+
     create_unimplemented_device("topckgen",     0x10000000, 0x1000);
     create_unimplemented_device("infracfg",     0x10001000, 0x1000);
     create_unimplemented_device("gpio",         0x10005000, 0x1000);
@@ -54,8 +80,8 @@ static void mt6580_realize(DeviceState *socdev, Error **errp)
     create_unimplemented_device("mcucfg",       0x10200000, 0x1000);
     create_unimplemented_device("sramrom",      0x10209000, 0x1000);
     create_unimplemented_device("display_pwm",  0x1100f000, 0x1000);
-    create_unimplemented_device("mmc0",         0x11120000, 0x1000);
-    create_unimplemented_device("mmc1",         0x11130000, 0x1000);
+    // create_unimplemented_device("usb0",         0x11100000, 0x1000);
+    create_unimplemented_device("usb0_phy",     0x11110000, 0x1000);
     create_unimplemented_device("mmsys",        0x14000000, 0x1000);
 }
 
@@ -68,6 +94,11 @@ static void mt6580_init(Object *obj)
     object_initialize_child(obj, "efusec", &s->efusec, TYPE_MT6580_EFUSEC);
 
     object_initialize_child(obj, "sej", &s->sej, TYPE_MT6580_SEJ);
+
+    for (int i = 0; i < NUM_MSDCS; i++) {
+        object_initialize_child(obj, "msdc[*]", &s->msdc[i], TYPE_MTK_MSDC);
+    }
+
 }
 
 static void mt6580_class_init(ObjectClass *klass, const void *data)
