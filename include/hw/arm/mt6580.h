@@ -7,7 +7,9 @@
 #include "hw/misc/mt6580_efusec.h"
 #include "hw/misc/mt6580_sej.h"
 #include "hw/sd/mtk-msdc.h"
+#include "hw/misc/mt6580_spm.h"
 
+#define NUM_UARTS 2
 #define NUM_MSDCS 2
 
 struct MT6580State {
@@ -19,6 +21,7 @@ struct MT6580State {
     Mt6580EfusecState efusec;
     Mt6580SejState sej;
     MtkMsdcState msdc[NUM_MSDCS];
+    Mt6580SpmState spm;
 };
 
 #define TYPE_MT6580_SOC "mt6580"
