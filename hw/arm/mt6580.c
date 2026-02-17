@@ -14,6 +14,8 @@
 #define MT6580_GPT_BASE    0x10008000
 #define MT6580_EFUSEC_BASE 0x10009000
 #define MT6580_SEJ_BASE    0x1000a000
+#define MT6580_PWRAP_BASE  0x1000f000
+#define MT6580_DRAMC0_BASE 0x10207000
 #define MT6580_UART0_BASE  0x11005000
 #define MT6580_UART1_BASE  0x11006000
 #define MT6580_MSDC0_BASE  0x11120000
@@ -79,6 +81,16 @@ static void mt6580_realize(DeviceState *socdev, Error **errp)
     sysbus_realize(SYS_BUS_DEVICE(&s->spm), &error_abort);
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->spm), 0, MT6580_SPM_BASE);
 
+
+    qdev_realize(DEVICE(&s->pmic), NULL, &error_fatal);
+    object_property_set_link(OBJECT(&s->pwrap), "pmic", OBJECT(DEVICE(&s->pmic)), &error_fatal);
+
+    sysbus_realize(SYS_BUS_DEVICE(&s->pwrap), &error_abort);
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->pwrap), 0, MT6580_PWRAP_BASE);
+
+    sysbus_realize(SYS_BUS_DEVICE(&s->dramc), &error_abort);
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->dramc), 0, MT6580_DRAMC0_BASE);
+
     // preloader uses this in dram init
     create_unimplemented_device("some_dram_address", 0x800000C, 0x4);
 
@@ -87,14 +99,12 @@ static void mt6580_realize(DeviceState *socdev, Error **errp)
     create_unimplemented_device("keypad",       0x10002000, 0x1000);
     create_unimplemented_device("gpio",         0x10005000, 0x1000);
     create_unimplemented_device("wdt",          0x10007000, 0x1000);
-    create_unimplemented_device("pmic_wrap",    0x1000f000, 0x1000);
     create_unimplemented_device("iocfg_t",      0x10014000, 0x1000);
     create_unimplemented_device("iocfg_b",      0x10015000, 0x1000);
     create_unimplemented_device("iocfg_r",      0x10017000, 0x1000);
     create_unimplemented_device("apmixed",      0x10018000, 0x1000);
     create_unimplemented_device("dbgsys",       0x1011a000, 0x1000);
     create_unimplemented_device("mcucfg",       0x10200000, 0x1000);
-    create_unimplemented_device("dramc0",       0x10207000, 0x1000);
     create_unimplemented_device("ddrphy",       0x10208000, 0x1000);
     create_unimplemented_device("sramrom",      0x10209000, 0x1000);
     create_unimplemented_device("display_pwm",  0x1100f000, 0x1000);
@@ -120,6 +130,12 @@ static void mt6580_init(Object *obj)
     }
 
     object_initialize_child(obj, "spm", &s->spm, TYPE_MT6580_SPM);
+
+    object_initialize_child(obj, "pwrap", &s->pwrap, TYPE_MT6580_PWRAP);
+
+    object_initialize_child(obj, "pmic", &s->pmic, TYPE_MT6350);
+
+    object_initialize_child(obj, "dramc", &s->dramc, TYPE_MT6580_DRAMC);
 }
 
 static void mt6580_class_init(ObjectClass *klass, const void *data)

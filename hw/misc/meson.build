@@ -163,7 +163,8 @@ specific_ss.add(when: 'CONFIG_RISCV_MIPS_CPC', if_true: files('riscv_cpc.c'))
 
 system_ss.add(when: 'CONFIG_SBSA_REF', if_true: files('sbsa_ec.c'))
 
-system_ss.add(when: 'CONFIG_MT6580', if_true: files('mt6580_efusec.c', 'mt6580_sej.c', 'mt6580_spm.c'))
+system_ss.add(when: 'CONFIG_MT6580', if_true: files('mt6580_efusec.c', 'mt6580_sej.c', 'mt6580_spm.c', 'mt6580_pwrap.c', 'mt6580_dramc.c'))
+system_ss.add(when: 'CONFIG_MT6580', if_true: files('mtk_pmic.c', 'mt6350.c'))
 
 # HPPA devices
 system_ss.add(when: 'CONFIG_LASI', if_true: files('lasi.c'))

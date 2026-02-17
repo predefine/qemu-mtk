@@ -8,6 +8,9 @@
 #include "hw/misc/mt6580_sej.h"
 #include "hw/sd/mtk-msdc.h"
 #include "hw/misc/mt6580_spm.h"
+#include "hw/misc/mt6580_pwrap.h"
+#include "hw/misc/mt6350.h"
+#include "hw/misc/mt6580_dramc.h"
 
 #define NUM_UARTS 2
 #define NUM_MSDCS 2
@@ -22,6 +25,9 @@ struct MT6580State {
     Mt6580SejState sej;
     MtkMsdcState msdc[NUM_MSDCS];
     Mt6580SpmState spm;
+    Mt6580PwrapState pwrap;
+    Mt6350State pmic;
+    Mt6580DramcState dramc;
 };
 
 #define TYPE_MT6580_SOC "mt6580"
