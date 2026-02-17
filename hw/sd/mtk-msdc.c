@@ -250,7 +250,7 @@ static void mtk_msdc_instance_init(Object *obj)
     qbus_init(&state->sdbus, sizeof(state->sdbus), TYPE_SD_BUS, DEVICE(state), "sd-bus");
 
     memory_region_init_io(&state->mmio, OBJECT(state), &mtk_msdc_ops,
-                          state, TYPE_MTK_MSDC, 0x120);
+                          state, TYPE_MTK_MSDC, 0x240);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &state->mmio);
 }
 
