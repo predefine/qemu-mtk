@@ -63,20 +63,20 @@ static void mt6580_realize(DeviceState *socdev, Error **errp)
 
 
     // fuck the emmc for now, i don't know if qemu supports pre-idle emmc state
-    qdev_prop_set_bit(DEVICE(&s->msdc[0]), "fuck-the-mmc", true);
+    // qdev_prop_set_bit(DEVICE(&s->msdc[0]), "fuck-the-mmc", true);
     // qdev_prop_set_bit(DEVICE(&s->msdc[1]), "fuck-the-mmc", true);
 
     for (int i = 0; i < NUM_MSDCS; i++) {
         sysbus_realize(SYS_BUS_DEVICE(&s->msdc[i]), &error_abort);
         sysbus_mmio_map(SYS_BUS_DEVICE(&s->msdc[i]), 0, msdc_addrs[i]);
-    }
 
-    DriveInfo* sdcard_di = drive_get(IF_SD, 0, 0);
-    assert(sdcard_di != NULL);
-    DeviceState* msdc_sdcard = qdev_new(TYPE_SD_CARD);
-    qdev_prop_set_drive(msdc_sdcard, "drive", blk_by_legacy_dinfo(sdcard_di));
-    qdev_realize_and_unref(msdc_sdcard, qdev_get_child_bus(DEVICE(&s->msdc[1]), "sd-bus"),
-                           &error_fatal);
+        DriveInfo* sdcard_di = drive_get(IF_SD, 0, i);
+        assert(sdcard_di != NULL);
+        DeviceState* msdc_sdcard = qdev_new(TYPE_SD_CARD);
+        qdev_prop_set_drive(msdc_sdcard, "drive", blk_by_legacy_dinfo(sdcard_di));
+        qdev_realize_and_unref(msdc_sdcard, qdev_get_child_bus(DEVICE(&s->msdc[i]), "sd-bus"),
+                            &error_fatal);
+    }
 
     sysbus_realize(SYS_BUS_DEVICE(&s->spm), &error_abort);
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->spm), 0, MT6580_SPM_BASE);
