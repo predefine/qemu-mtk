@@ -41,8 +41,6 @@ static void mt6580_realize(DeviceState *socdev, Error **errp)
 
         object_property_add_child(OBJECT(s), "cpu[*]", cpuobj);
 
-        object_property_set_bool(cpuobj, "has_el3", false, &error_fatal);
-
         s->cpu[n] = ARM_CPU(cpuobj);
         qdev_realize(DEVICE(cpuobj), NULL, &error_fatal);
     }
