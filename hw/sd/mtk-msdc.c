@@ -3,9 +3,47 @@
 #include "hw/sd/sd.h"
 #include "qemu/log.h"
 #include "hw/core/qdev-properties.h"
+#include "system/dma.h"
+#include "exec/memattrs.h"
 #include "hw/sd/mtk-msdc.h"
 
 #define MSDC_FIFO_THRESHOLD 0x80
+
+// stolen from preloader source code
+typedef struct {
+    uint32_t hwo:1;
+    uint32_t bdp:1;
+    uint32_t rsv0:6;
+    uint32_t chksum:8;
+    uint32_t intr:1;
+    uint32_t rsv1:7;
+    uint32_t nexth4:4;
+    uint32_t ptrh4:4;
+    uint32_t next; // gpd_t*
+    uint32_t ptr;  // bd_t*
+    uint32_t buflen:24;
+    uint32_t extlen:8;
+    uint32_t arg;
+    uint32_t blknum;
+    uint32_t cmd;
+} gpd_t;
+
+typedef struct {
+    uint32_t eol:1;
+    uint32_t rsv0:7;
+    uint32_t chksum:8;
+    uint32_t rsv1:1;
+    uint32_t blkpad:1;
+    uint32_t dwpad:1;
+    uint32_t rsv2:5;
+    uint32_t nexth4:4;
+    uint32_t ptrh4:4;
+    uint32_t next; // bd_t*
+    uint32_t ptr;  // addr to memory
+    uint32_t buflen:24;
+    uint32_t rsv3:8;
+} bd_t;
+
 
 static void mtk_msdc_clear_fifo(MtkMsdcState *state)
 {
@@ -15,13 +53,40 @@ static void mtk_msdc_clear_fifo(MtkMsdcState *state)
     state->current_offset = 0;
 }
 
-static uint64_t mtk_msdc_get_fifo_rx_bytes(MtkMsdcState *state)
+static uint64_t mtk_msdc_get_fifo_rx_bytes_raw(MtkMsdcState *state)
 {
     uint64_t remain_of_this_block = state->block_len - state->current_offset;
     if (state->blocks > state->current_block)
-        return MIN(remain_of_this_block + state->block_len * state->blocks, MSDC_FIFO_THRESHOLD);
+        return remain_of_this_block + state->block_len * state->blocks;
     else
-        return MIN(remain_of_this_block, MSDC_FIFO_THRESHOLD);
+        return remain_of_this_block;
+}
+
+
+static uint64_t mtk_msdc_get_fifo_rx_bytes(MtkMsdcState *state)
+{
+    return MIN(mtk_msdc_get_fifo_rx_bytes_raw(state), MSDC_FIFO_THRESHOLD);
+}
+
+static uint32_t mtk_msdc_get_fifo_rx_byte(MtkMsdcState *state, uint8_t *byte)
+{
+    if (mtk_msdc_get_fifo_rx_bytes_raw(state) < sizeof(*byte))
+        return 1;
+
+    *byte = sdbus_read_byte(&state->sdbus);
+    state->current_offset++;
+    if (state->current_offset == state->block_len)
+    {
+        state->current_block++;
+        state->current_offset = 0;
+        if (state->current_block > state->blocks)
+        {
+            mtk_msdc_clear_fifo(state);
+            state->msdc_int |= 1 << 12; // MSDC_INT |= DATA_XFER_COMPLETE
+        }
+    }
+
+    return 0;
 }
 
 static uint64_t mtk_msdc_read(void *o, hwaddr offset, unsigned int size)
@@ -54,21 +119,11 @@ static uint64_t mtk_msdc_read(void *o, hwaddr offset, unsigned int size)
             qemu_log_mask(LOG_UNIMP, "mtk_msdc: fifo rxdbg: %.8lx, %.8x, %.8x\n", mtk_msdc_get_fifo_rx_bytes(state), state->blocks, state->block_len);
             if (mtk_msdc_get_fifo_rx_bytes(state) < size)
                 size = mtk_msdc_get_fifo_rx_bytes(state);
-            assert(state->block_len >= state->current_offset + size); // read at edge of blocks
             for (uint32_t i = 0; i < size; i++)
             {
-                ret |= sdbus_read_byte(&state->sdbus) << i * 8;
-                state->current_offset++;
-            }
-            if (state->current_offset == state->block_len)
-            {
-                state->current_block++;
-                state->current_offset = 0;
-                if (state->current_block > state->blocks)
-                {
-                    mtk_msdc_clear_fifo(state);
-                    state->msdc_int |= 1 << 12; // MSDC_INT |= DATA_XFER_COMPLETE
-                }
+                uint8_t byte = 0;
+                assert(0 == mtk_msdc_get_fifo_rx_byte(state, &byte));
+                ret |= byte << i * 8;
             }
             break;
         case 0x30:
@@ -91,6 +146,10 @@ static uint64_t mtk_msdc_read(void *o, hwaddr offset, unsigned int size)
             return state->emmc_sts;
         case 0x7c:
             return state->emmc_iocon;
+        case 0x98:
+            return (state->dma_burst_size << 12) | (state->dma_mode << 8) | (1 << 3); // BURST_SIZE | DMA_MODE | AHB_READYM
+        case 0x9c:
+            return state->dma_cfg;
         case 0xb8:
             return state->patch_bit2;
         case 0xf0:
@@ -212,6 +271,61 @@ static void mtk_msdc_write(void *o, hwaddr offset,
                 // set boot-up mode bit for emmc_cfg0
                 //state->emmc_cfg0 |= 1 << 2
             }
+            break;
+        case 0x90:
+            state->dma_addr = value;
+            break;
+        case 0x98:
+        {
+            state->dma_mode = (value >> 8) & 1;
+            state->dma_burst_size = (value >> 12) & 7;
+            if (value & 1) // DMA_START
+            {
+                assert(state->dma_mode == 1); // TODO: "dma basic mode" isn't implemented yet
+                qemu_log_mask(LOG_UNIMP, "mtk_msdc: dma start: %.8x, burst_size=%.8d bytes,mode=%d\n",
+                              state->dma_addr, 1 << state->dma_burst_size, state->dma_mode);
+
+                gpd_t gpd = {.next = state->dma_addr};
+                do {
+                    assert(MEMTX_OK == dma_memory_read(&address_space_memory, gpd.next, &gpd, sizeof(gpd), MEMTXATTRS_UNSPECIFIED));
+                    if (gpd.hwo == 0) // "gpd is not null"?
+                        break;
+
+                    if (gpd.bdp == 0) // "bd pointer is specified"?
+                        continue;
+
+                    bd_t bd = {.next = gpd.ptr};
+
+                    do {
+                        assert(MEMTX_OK == dma_memory_read(&address_space_memory, bd.next, &bd, sizeof(bd), MEMTXATTRS_UNSPECIFIED));
+
+                        if (mtk_msdc_get_fifo_rx_bytes_raw(state) < bd.buflen) // hack
+                        {
+                            bd.buflen = mtk_msdc_get_fifo_rx_bytes_raw(state);
+                            bd.next = 0;
+                            gpd.next = 0;
+                        }
+
+                        for (uint32_t offs = 0; offs < bd.buflen; offs++)
+                        {
+                            uint8_t byte = 0;
+                            assert(0 == mtk_msdc_get_fifo_rx_byte(state, &byte));
+                            dma_memory_write(&address_space_memory, bd.ptr + offs, &byte, sizeof(byte), MEMTXATTRS_UNSPECIFIED);
+                        }
+                    } while (bd.next);
+                } while(gpd.next);
+
+                if (mtk_msdc_get_fifo_rx_bytes_raw(state) == 0)
+                {
+                    mtk_msdc_clear_fifo(state);
+                    state->msdc_int |= 1 << 12; // MSDC_INT |= DATA_XFER_COMPLETE
+                }
+                qemu_log_mask(LOG_UNIMP, "mtk_msdc: dma fifo state: %.8lx\n", mtk_msdc_get_fifo_rx_bytes_raw(state));
+            }
+            break;
+        }
+        case 0x9c:
+            state->dma_cfg = value & ~1;
             break;
         case 0xb8:
             state->patch_bit2 = value;

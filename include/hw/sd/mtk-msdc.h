@@ -16,6 +16,12 @@ struct MtkMsdcState {
     bool fuck_the_mmc;
     SDBus sdbus;
 
+    // dma
+    uint32_t dma_burst_size;
+    uint32_t dma_mode; // 0 = basic, 1 - enchanced
+    uint32_t dma_addr;
+    uint32_t dma_cfg;
+
     // CMD_READ
     uint32_t blocks;
     uint32_t block_len;
