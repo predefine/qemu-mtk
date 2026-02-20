@@ -4,6 +4,7 @@
 #include "cpu.h"
 #include "hw/core/sysbus.h"
 #include "hw/arm/mt6580.h"
+#include "qom/object.h"
 #include "system/address-spaces.h"
 #include "system/system.h"
 #include "hw/char/serial-mtk.h"
@@ -16,6 +17,7 @@
 #define MT6580_SEJ_BASE    0x1000a000
 #define MT6580_PWRAP_BASE  0x1000f000
 #define MT6580_DRAMC0_BASE 0x10207000
+#define MT6580_MPCORE_BASE 0x10210000
 #define MT6580_UART0_BASE  0x11005000
 #define MT6580_UART1_BASE  0x11006000
 #define MT6580_MSDC0_BASE  0x11120000
@@ -35,15 +37,33 @@ hwaddr msdc_addrs[] = {
 static void mt6580_realize(DeviceState *socdev, Error **errp)
 {
     MT6580State *s = MT6580_SOC(socdev);
+
     // TODO: implement smp
-    for (int n = 0; n < 1; n++) {
-        Object *cpuobj = object_new(ARM_CPU_TYPE_NAME("cortex-a7"));
+    for (int i = 0; i < NUM_CPUS; i++) {
+        object_property_set_int(OBJECT(&s->cpu[i]), "reset-cbar", MT6580_MPCORE_BASE, &error_abort);
+        object_property_set_int(OBJECT(&s->cpu[i]), "cntfrq", 13000000, &error_abort);
+        object_property_set_int(OBJECT(&s->cpu[i]), "mp-affinity", i, &error_abort);
 
-        object_property_add_child(OBJECT(s), "cpu[*]", cpuobj);
-
-        s->cpu[n] = ARM_CPU(cpuobj);
-        qdev_realize(DEVICE(cpuobj), NULL, &error_fatal);
+        qdev_realize(DEVICE(&s->cpu[i]), NULL, &error_fatal);
     }
+
+
+    object_property_set_int(OBJECT(&s->a7mpcore), "num-cpu", NUM_CPUS, &error_abort);
+    object_property_set_int(OBJECT(&s->a7mpcore), "num-irq",
+                            ROUND_UP(MT6580_MAX_IRQ + GIC_INTERNAL, 32), &error_abort);
+
+    sysbus_realize(SYS_BUS_DEVICE(&s->a7mpcore), &error_abort);
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->a7mpcore), 0, MT6580_MPCORE_BASE);
+
+    for (int i = 0; i < NUM_CPUS; i++) {
+        DeviceState *cpu = DEVICE(&s->cpu[i]);
+
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->a7mpcore), i, qdev_get_gpio_in(cpu, ARM_CPU_IRQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->a7mpcore), i + NUM_CPUS, qdev_get_gpio_in(cpu, ARM_CPU_FIQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->a7mpcore), i + 2 * NUM_CPUS, qdev_get_gpio_in(cpu, ARM_CPU_VIRQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->a7mpcore), i + 3 * NUM_CPUS, qdev_get_gpio_in(cpu, ARM_CPU_VFIQ));
+    }
+
 
     for (uint32_t i = 0; i < NUM_UARTS; i++)
         serial_mtk_init(get_system_memory(), uart_bases[i], 2, NULL, 921600, serial_hd(i), DEVICE_NATIVE_ENDIAN);
@@ -116,6 +136,11 @@ static void mt6580_realize(DeviceState *socdev, Error **errp)
 static void mt6580_init(Object *obj)
 {
     MT6580State *s = MT6580_SOC(obj);
+
+    for (uint32_t i = 0; i < NUM_CPUS; i++)
+        object_initialize_child(obj, "cpu[*]", &s->cpu[i], ARM_CPU_TYPE_NAME("cortex-a7"));
+
+    object_initialize_child(obj, "a7mpcore", &s->a7mpcore, TYPE_A15MPCORE_PRIV);
 
     object_initialize_child(obj, "gpt", &s->gpt, TYPE_MTK_GPT);
 

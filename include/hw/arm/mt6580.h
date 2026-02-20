@@ -3,6 +3,7 @@
 
 #include "hw/core/sysbus.h"
 #include "hw/arm/boot.h"
+#include "hw/cpu/a15mpcore.h"
 #include "hw/timer/mtk_gpt.h"
 #include "hw/misc/mt6580_efusec.h"
 #include "hw/misc/mt6580_sej.h"
@@ -12,13 +13,17 @@
 #include "hw/misc/mt6350.h"
 #include "hw/misc/mt6580_dramc.h"
 
+#define NUM_CPUS 1
 #define NUM_UARTS 2
 #define NUM_MSDCS 2
+
+#define MT6580_MAX_IRQ (219 - 31)
 
 struct MT6580State {
     SysBusDevice parent_obj;
 
-    ARMCPU *cpu[4];
+    ARMCPU cpu[NUM_CPUS];
+    A15MPPrivState a7mpcore;
 
     MtkGptState gpt;
     Mt6580EfusecState efusec;
