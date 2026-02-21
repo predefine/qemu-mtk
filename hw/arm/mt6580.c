@@ -23,6 +23,8 @@
 #define MT6580_MSDC0_BASE  0x11120000
 #define MT6580_MSDC1_BASE  0x11130000
 
+#define MT6580_MSDC0_IRQ   38
+
 hwaddr uart_bases[] = {
     MT6580_UART0_BASE,
     MT6580_UART1_BASE,
@@ -32,7 +34,6 @@ hwaddr msdc_addrs[] = {
     MT6580_MSDC0_BASE,
     MT6580_MSDC1_BASE,
 };
-
 
 static void mt6580_realize(DeviceState *socdev, Error **errp)
 {
@@ -94,6 +95,8 @@ static void mt6580_realize(DeviceState *socdev, Error **errp)
         qdev_prop_set_drive(msdc_sdcard, "drive", blk_by_legacy_dinfo(sdcard_di));
         qdev_realize_and_unref(msdc_sdcard, qdev_get_child_bus(DEVICE(&s->msdc[i]), "sd-bus"),
                             &error_fatal);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->msdc[i]), 0,
+                            qdev_get_gpio_in(DEVICE(&s->a7mpcore), MT6580_MSDC0_IRQ + i));
     }
 
     sysbus_realize(SYS_BUS_DEVICE(&s->spm), &error_abort);
@@ -109,20 +112,27 @@ static void mt6580_realize(DeviceState *socdev, Error **errp)
     sysbus_realize(SYS_BUS_DEVICE(&s->dramc), &error_abort);
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->dramc), 0, MT6580_DRAMC0_BASE);
 
-    // preloader uses this in dram init
-    create_unimplemented_device("some_dram_address", 0x800000C, 0x4);
+    // preloader uses 0x800_000c in dram init
+    // and lk uses 0x800_0000 somewhere
+    create_unimplemented_device("some_dram_address", 0x8000000, 0x10);
 
     create_unimplemented_device("topckgen",     0x10000000, 0x1000);
     create_unimplemented_device("infracfg",     0x10001000, 0x1000);
     create_unimplemented_device("keypad",       0x10002000, 0x1000);
+    create_unimplemented_device("pericfg",      0x10003000, 0x1000);
     create_unimplemented_device("gpio",         0x10005000, 0x1000);
     create_unimplemented_device("wdt",          0x10007000, 0x1000);
+    create_unimplemented_device("devapc_ao",    0x10010000, 0x1000);
     create_unimplemented_device("iocfg_t",      0x10014000, 0x1000);
     create_unimplemented_device("iocfg_b",      0x10015000, 0x1000);
+    create_unimplemented_device("iocfg_l",      0x10016000, 0x1000);
     create_unimplemented_device("iocfg_r",      0x10017000, 0x1000);
     create_unimplemented_device("apmixed",      0x10018000, 0x1000);
     create_unimplemented_device("dbgsys",       0x1011a000, 0x1000);
     create_unimplemented_device("mcucfg",       0x10200000, 0x1000);
+    create_unimplemented_device("devapc",       0x10204000, 0x1000);
+    create_unimplemented_device("emi",          0x10205000, 0x1000);
+    create_unimplemented_device("dramc_nao",    0x10206000, 0x1000);
     create_unimplemented_device("ddrphy",       0x10208000, 0x1000);
     create_unimplemented_device("sramrom",      0x10209000, 0x1000);
     create_unimplemented_device("display_pwm",  0x1100f000, 0x1000);
