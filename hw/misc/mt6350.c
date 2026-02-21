@@ -18,6 +18,8 @@ uint32_t fqmtr_measure_freq_list[8] = {
     [FQMTR_FQM26M_CK] = 26000000,
 };
 
+#define RAW_TO_ADC(raw, n) ((raw) * 32768 / (1800*(n)))
+
 static uint16_t mt6350_read_reg(MtkPmicState *pmic, uint16_t reg)
 {
     Mt6350State *state = MT6350(pmic);
@@ -47,12 +49,12 @@ static uint16_t mt6350_read_reg(MtkPmicState *pmic, uint16_t reg)
             if ((state->adc_request_list & (1 << BATSNS_CHANNEL_NUMBER)) == 0)
                 return 0;
             // 3.7V
-            return (1 << 15) | (3700 & 0x7fff);
+            return (1 << 15) | (RAW_TO_ADC(3700,4) & 0x7fff);
         case 0x718: // vcharger
             if ((state->adc_request_list & (1 << VCHARGER_CHANNEL_NUMBER)) == 0)
                 return 0;
             // 5.5V
-            return (1 << 15) | ((5500 / 123 * 13) & 0x7fff);
+            return (1 << 15) | ((RAW_TO_ADC(5500,1) / 123 * 13) & 0x7fff);
         case 0x76e: // AUXADC_CON22
             return state->adc_request_list & 0x1ff;
         default:
