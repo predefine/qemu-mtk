@@ -49,7 +49,7 @@ static void mt6580_dramc_instance_init(Object *obj)
     Mt6580DramcState *state = MT6580_DRAMC(obj);
 
     memory_region_init_io(&state->mmio, OBJECT(state), &mt6580_dramc_ops,
-                          state, TYPE_MT6580_DRAMC, 0x400);
+                          state, TYPE_MT6580_DRAMC, 0x800);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &state->mmio);
 }
 
