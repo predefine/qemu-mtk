@@ -74,8 +74,8 @@ static void mtk_gpt_write(void *o, hwaddr offset,
     }
     hwaddr timer_number = (offset >> 4) - 1;
 
-    // TODO: implement 0x00..0x10 registers and gpt6 64bit
-    assert(timer_number < 6);
+    // TODO: 64bit mode of gpt6
+    assert(timer_number < 7);
 
     struct MtkGptTimer* timer = &state->timers[timer_number];
 
