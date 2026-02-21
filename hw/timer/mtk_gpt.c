@@ -28,6 +28,14 @@ static uint64_t mtk_gpt_read(void *o, hwaddr offset, unsigned int size)
 {
     MtkGptState *state = MTK_GPT(o);
 
+    if (offset < 0x10)
+    {
+        qemu_log_mask(LOG_UNIMP, "mtk_gpt: unimplemented device read  "
+        "(size %d, offset 0x%0*" HWADDR_PRIx ")\n",
+                      size, 2, offset);
+        return 0;
+    }
+
     hwaddr timer_number = (offset >> 4) - 1;
 
     // TODO: implement 0x00..0x10 registers and gpt6 64bit
@@ -56,11 +64,18 @@ static void mtk_gpt_write(void *o, hwaddr offset,
 {
     MtkGptState *state = MTK_GPT(o);
 
+    if (offset < 0x10)
+    {
+        qemu_log_mask(LOG_UNIMP, "mtk_gpt: unimplemented device write "
+        "(size %d, offset 0x%0*" HWADDR_PRIx
+        ", value 0x%0*" PRIx64 ")\n",
+        size, 2, offset, size << 1, value);
+        return ;
+    }
     hwaddr timer_number = (offset >> 4) - 1;
 
     // TODO: implement 0x00..0x10 registers and gpt6 64bit
-    if (timer_number > 5)
-        return;
+    assert(timer_number < 6);
 
     struct MtkGptTimer* timer = &state->timers[timer_number];
 
@@ -69,6 +84,8 @@ static void mtk_gpt_write(void *o, hwaddr offset,
     switch (offset & 0xf) {
         case 0x0: // GPTx_CON
             ptimer_transaction_begin(timer->ptimer);
+
+            qemu_log_mask(LOG_UNIMP, "mtk_gpt: GPT%ld CON: mode=%ld\n", timer_number + 1, (value >> 4) & 3);
 
             if (value & (1 << 1)) // GPT_CLR
                 ptimer_set_count(timer->ptimer, 0);
@@ -104,6 +121,7 @@ static void mtk_gpt_write(void *o, hwaddr offset,
         case 0x8:
             break;
         case 0xc:
+            qemu_log_mask(LOG_UNIMP, "mtk_gpt: GPT%ld CMP: %.8lx\n", timer_number + 1, value);
             // TODO: implement "COMPARE"
             break;
     }
