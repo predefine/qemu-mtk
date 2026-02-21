@@ -5,6 +5,7 @@
 #include "hw/core/qdev-properties.h"
 #include "system/dma.h"
 #include "exec/memattrs.h"
+#include "hw/core/irq.h"
 #include "hw/sd/mtk-msdc.h"
 
 #define MSDC_FIFO_THRESHOLD 0x80
@@ -44,6 +45,10 @@ typedef struct {
     uint32_t rsv3:8;
 } bd_t;
 
+static void mtk_msdc_update_irq(MtkMsdcState *state)
+{
+    qemu_set_irq(state->irq, state->msdc_int & state->msdc_int_en);
+}
 
 static void mtk_msdc_clear_fifo(MtkMsdcState *state)
 {
@@ -103,7 +108,6 @@ static uint64_t mtk_msdc_read(void *o, hwaddr offset, unsigned int size)
         case 0x8:
             return 0xf << 16;
         case 0xc:
-            // TODO: msdc interrupts
             ret = state->msdc_int;
             break;
         case 0x10:
@@ -125,6 +129,7 @@ static uint64_t mtk_msdc_read(void *o, hwaddr offset, unsigned int size)
                 assert(0 == mtk_msdc_get_fifo_rx_byte(state, &byte));
                 ret |= byte << i * 8;
             }
+            mtk_msdc_update_irq(state);
             break;
         case 0x30:
             return state->sdc_cfg;
@@ -187,7 +192,6 @@ static void mtk_msdc_write(void *o, hwaddr offset,
         case 0x14: {
             if (value & (1 << 31))
             {
-                // TODO: clear fifo
                 mtk_msdc_clear_fifo(state);
 
                 // TODO: sdbus reset
@@ -203,7 +207,7 @@ static void mtk_msdc_write(void *o, hwaddr offset,
             if (state->fuck_the_mmc)
             {
                 state->msdc_int |= (1 << 9); // msdc_int |= SD_CMD_TIMEOUT
-                return;
+                break;
             }
 
             uint8_t resp[16];
@@ -339,6 +343,9 @@ static void mtk_msdc_write(void *o, hwaddr offset,
             ", value 0x%0*" PRIx64 ")\n",
             size, 2, offset, size << 1, value);
     }
+
+    mtk_msdc_update_irq(state);
+
     return ;
 }
 
@@ -366,6 +373,7 @@ static void mtk_msdc_instance_init(Object *obj)
     memory_region_init_io(&state->mmio, OBJECT(state), &mtk_msdc_ops,
                           state, TYPE_MTK_MSDC, 0x240);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &state->mmio);
+    sysbus_init_irq(SYS_BUS_DEVICE(obj), &state->irq);
 }
 
 static void mtk_msdc_class_init(ObjectClass *klass, const void *data)

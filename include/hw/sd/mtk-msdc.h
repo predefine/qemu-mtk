@@ -4,7 +4,6 @@
 #include "hw/core/sysbus.h"
 #include "qom/object.h"
 #include "hw/sd/sd.h"
-#include "qemu/fifo8.h"
 
 #define TYPE_MTK_MSDC     "mtk-msdc"
 OBJECT_DECLARE_SIMPLE_TYPE(MtkMsdcState, MTK_MSDC)
@@ -15,6 +14,7 @@ struct MtkMsdcState {
     MemoryRegion mmio;
     bool fuck_the_mmc;
     SDBus sdbus;
+    qemu_irq irq;
 
     // dma
     uint32_t dma_burst_size;
