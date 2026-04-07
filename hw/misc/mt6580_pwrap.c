@@ -13,11 +13,17 @@ static uint64_t mt6580_pwrap_read(void *o, hwaddr offset, unsigned int size)
         case 0x94: // WACS2_EN
             ret = state->wacs2_enable;
             break;
+        case 0x98: // WACS2_INITDONE
+            ret = 1;
+            break;
         case 0xa0: // WACS2_RDATA
             ret |= 1 << 21; // WACS2_RDATA |= INIT_DONE
             ret |= 1 << 20; // WACS2_RDATA |= SYNC_IDLE
             ret |= ((state->wacs2_fsm) & 7) << 16;
             ret |= state->wacs2_value & 0xffff;
+            break;
+        case 0x130: // CIPHER_RDY
+            ret = 1;
             break;
         case 0x180:
             ret = state->swrst;
@@ -113,6 +119,8 @@ static void mt6580_pwrap_instance_init(Object *obj)
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &state->mmio);
 
     object_property_add_link(OBJECT(state), "pmic", TYPE_MTK_PMIC, (Object**) &state->pmic, qdev_prop_allow_set_link_before_realize, 0);
+    state->wrap_enable = 1;
+    state->wacs2_enable = 1;
 }
 
 static const TypeInfo mt6580_pwrap_info = {
